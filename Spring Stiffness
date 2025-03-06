@@ -1,0 +1,19 @@
+import math
+#Spring Stiffness from Maximum displacement
+M_W_D = 75
+M_D_F = 30
+ms = 176.7
+WD=49/100
+CW=(ms*WD)/2
+LLT = (0.34*1.5*9.81*320/1.53)*0.52
+D = 950
+MR= M_W_D/M_D_F
+
+W_C_R = (CW*9.81 + LLT + D )/M_W_D
+print(MR, W_C_R)
+#Spring Stiffness from Natural Frequency
+k = 131.35
+F=3.5
+W_C_R2 = F*(2*3.14)**2*ms
+MR_2 = math.sqrt(k/(W_C_R2/1000))
+print(MR_2, W_C_R2/1000)
