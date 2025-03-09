@@ -1,0 +1,372 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Oct  1 23:04:25 2024
+
+@author: PIETRA
+"""
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Oct  1 00:13:35 2024
+
+@author: PIETRA
+"""
+
+import numpy as np
+from scipy.optimize import minimize
+import sympy as sp
+import math
+# Parâmetros fixos
+xpd, ypd, zpd = 582.5, 946.98, 0
+xpt, ypt, zpt = 540, -583, 0
+
+zcg, ycg = 334.6, 179.3
+epsilon = 1e-1  # Pequeno deslocamento para evitar problemas de sqrt(0)
+
+# Número de variáveis (24 variáveis: x01d, y01d, z01d, x1d, y1d, z1d, x02d, y02d, z02d, x2d, y2d, z2d,
+# x01t, y01t, z01t, x1t, y1t, z1t, x02t, y02t, z02t, x2t, y2t, z2t)
+n_vars = 30
+
+
+##ESFORÇOS
+fd = 3.0 #fator dinÂmico
+cf= 1.2 #coefficient of friction
+fa = 1.3 #Fator Aero
+d = 943 #Downforce
+w = 3139.2 #Weight
+fwb = 992 #Front wheel base
+hcg = 340
+wh = 1530.72
+Design_vertical_load = 0.5*(w)+(d*fa)
+Wt = w + d
+
+# Índices das variáveis
+idx = {
+    'x01d': 0, 'z01d': 1,
+    'x1d': 2, 'z1d': 3,
+    'x02d': 4, 'z02d': 5,
+    'x2d': 6, 'z2d': 7,
+    'x01t': 8, 'z01t': 9,
+    'x1t': 10, 'z1t': 11,
+    'x02t': 12, 'z02t': 13,
+    'x2t': 14, 'z2t': 15,
+    'KPId': 16
+}
+
+def objective_function(x):
+    # Extrai as variáveis dianteiras
+    x01d, z01d = x[idx['x01d']], x[idx['z01d']]
+    x1d, z1d = x[idx['x1d']], x[idx['z1d']]
+    x02d, z02d = x[idx['x02d']], x[idx['z02d']]
+    x2d, z2d = x[idx['x2d']], x[idx['z2d']]
+    
+    # Extrai as variáveis traseiras
+    x01t, z01t = x[idx['x01t']], x[idx['z01t']]
+    x1t, z1t = x[idx['x1t']], x[idx['z1t']]
+    x02t, z02t = x[idx['x02t']], x[idx['z02t']]
+    x2t, z2t = x[idx['x2t']], x[idx['z2t']]
+    xpd, ypd, zpd = 640, 946.98, 0
+    xpt, ypt, zpt = 564, -583, 0
+    zcg, ycg = 334.6, 179.3
+    
+    a1d = ((z1d - z01d) / (x1d - x01d))
+    b1d = z1d - a1d * x1d
+    a2d = ((z2d - z02d) / (x2d - x02d))
+    b2d = z2d - a2d * x2d
+   
+    xid = (b1d - b2d) / (a2d - a1d)
+    zid = a1d * xid + b1d
+  
+    
+    a1t = ((z1t - z01t) / (x1t - x01t))
+    b1t = z1t - a1t * x1t
+    a2t = ((z2t - z02t) / (x2t - x02t))
+    b2t = z2t - a2t * x2t
+    xit = (b1t - b2t) / (a2t - a1t)
+    zit = a1t * xit + b1t
+    
+    ad = (-zid/(xpd - xid))
+    bd = -ad*xpd
+    zd = bd
+    yd = 955
+    
+    y1t = -583
+    y01t = -440
+    at = (-zit/(xpt - xit))
+    bt = -at*xpt
+    zt = bt
+    yt = -x1t*(y1t - y01t)/(x1t - x01t) + y1t
+    a = ((zd - zt)/(yd - yt))
+    b = zd - a*yd
+    distancia_cg = (abs(a * ycg - zcg + b)) / np.sqrt(a**2 + 1)
+ # Retorna a distância como função objetivo
+    return distancia_cg 
+
+
+
+
+
+
+def restrição_2d(x):
+    A4zd = np.arctan((x[idx['x2d']] - x[idx['x1d']]) / (x[idx['z2d']] - x[idx['z1d']] + epsilon))
+    A2xd = np.arctan(np.deg2rad((x[idx['z2d']] - x[idx['z02d']]) / (x[idx['x2d']] - x[idx['x02d']] + epsilon)))
+    A3zd = np.arctan(np.deg2rad((x[idx['x01d']] - x[idx['x02d']]) / (x[idx['z01d']] - x[idx['z02d']] + epsilon)))
+    A1xd = np.arctan(np.deg2rad((x[idx['z1d']] - x[idx['z01d']]) / (x[idx['x1d']] - x[idx['x01d']] + epsilon)))
+    #A4zd = np.arctan(np.deg2rad((x[idx['x1d']] - x[idx['x2d']]) / (x[idx['z1d']] - x[idx['z2d']] + epsilon)))
+    L2d = np.sqrt((x[idx['x2d']] - x[idx['x02d']])**2 + (x[idx['z2d']] - x[idx['z02d']])**2 +  epsilon)
+    L3d = np.sqrt((x[idx['x01d']] - x[idx['x02d']])**2 + (x[idx['z01d']] - x[idx['z02d']])**2 +  epsilon)
+    L1d = np.sqrt((x[idx['x1d']] - x[idx['x01d']])**2 + (x[idx['z1d']] - x[idx['z01d']])**2 +  epsilon)
+    L4d = np.sqrt((x[idx['x1d']] - x[idx['x2d']])**2 + (x[idx['z1d']] - x[idx['z2d']])**2 +  epsilon)
+    A2 = (L2d * np.sin(A2xd) + L4d * np.cos(np.deg2rad(A4zd)))  + L1d * np.sin(A1xd) - L3d * np.cos(A3zd)
+    #print(f"Ab: {Ab}")
+    return [A2 - 40, 70 - A2]
+
+def restrição_2t(x):
+    A4zt = np.arctan(np.deg2rad((x[idx['x2t']] - x[idx['x1t']]) / (x[idx['z2t']] - x[idx['z1t']] + epsilon)))
+    A2xt = np.arctan(np.deg2rad((x[idx['z2t']] - x[idx['z02t']]) / (x[idx['x2t']] - x[idx['x02t']] + epsilon)))
+    A3yt = np.arctan(np.deg2rad((x[idx['x01t']] - x[idx['x02t']]) / (x[idx['z01t']] - x[idx['z02t']] + epsilon)))
+    A1xt = np.arctan(np.deg2rad((x[idx['z1t']] - x[idx['z01t']]) / (x[idx['x1t']] - x[idx['x01t']] + epsilon)))
+    L2t = np.sqrt((x[idx['x2t']] - x[idx['x02t']])**2 + (x[idx['z2t']] - x[idx['z02t']])**2 + epsilon)
+    L3t = np.sqrt((x[idx['x01t']] - x[idx['x02t']])**2 + (x[idx['z01t']] - x[idx['z02t']])**2 + epsilon)
+    L1t = np.sqrt((x[idx['x1t']] - x[idx['x01t']])**2 + (x[idx['z1t']] - x[idx['z01t']])**2 + epsilon)
+    L4t = np.sqrt((x[idx['x1t']] - x[idx['x2t']])**2 + (x[idx['z1t']] - x[idx['z2t']])**2 + epsilon)
+    
+    C = (L2t * np.sin(A2xt) + L4t * np.cos(np.deg2rad((A4zt))) + L1t * np.sin(A1xt) - L3t * np.cos(A3yt))
+    
+    #print(f'{C}')
+    # Retornar a lista com duas desigualdades
+    return [C - 40, 60 - C]
+
+
+def restrição_3d(x):
+    A4zd = np.arctan((x[idx['x2d']] - x[idx['x1d']]) / (x[idx['z2d']] - x[idx['z1d']] + epsilon))
+    A2xd = np.arctan(np.deg2rad((x[idx['z2d']] - x[idx['z02d']]) / (x[idx['x2d']] - x[idx['x02d']] + epsilon)))
+    A3zd = np.arctan(np.deg2rad((x[idx['x01d']] - x[idx['x02d']]) / (x[idx['z01d']] - x[idx['z02d']] + epsilon)))
+    A1xd = np.arctan(np.deg2rad((x[idx['z1d']] - x[idx['z01d']]) / (x[idx['x1d']] - x[idx['x01d']] + epsilon)))
+    #A4zd = np.arctan(np.deg2rad((x[idx['x1d']] - x[idx['x2d']]) / (x[idx['z1d']] - x[idx['z2d']] + epsilon)))
+    L2d = np.sqrt((x[idx['x2d']] - x[idx['x02d']])**2 + (x[idx['z2d']] - x[idx['z02d']])**2 +  epsilon)
+    L3d = np.sqrt((x[idx['x01d']] - x[idx['x02d']])**2 + (x[idx['z01d']] - x[idx['z02d']])**2  + epsilon)
+    L1d = np.sqrt((x[idx['x1d']] - x[idx['x01d']])**2 + (x[idx['z1d']] - x[idx['z01d']])**2  + epsilon)
+    L4d = np.sqrt((x[idx['x1d']] - x[idx['x2d']])**2 + (x[idx['z1d']] - x[idx['z2d']])**2 + epsilon)
+    A = (L2d * np.cos(A2xd) - L4d * np.sin(np.deg2rad(A4zd)))  - L1d * np.cos(A1xd) - L3d * np.sin(A3zd)
+    #print(f"B: {B}")
+    return [A - 40, 70 - A]
+def restrição_3t(x):
+    A4zt = np.arctan(np.deg2rad((x[idx['x2t']] - x[idx['x1t']]) / (x[idx['z2t']] - x[idx['z1t']] + epsilon)))
+    A2xt = np.arctan(np.deg2rad((x[idx['z2t']] - x[idx['z02t']]) / (x[idx['x2t']] - x[idx['x02t']] + epsilon)))
+    A3zt = np.arctan(np.deg2rad((x[idx['x01t']] - x[idx['x02t']]) / (x[idx['z01t']] - x[idx['z02t']] + epsilon)))
+    A1xt = np.arctan(np.deg2rad((x[idx['z1t']] - x[idx['z01t']]) / (x[idx['x1t']] - x[idx['x01t']] + epsilon)))
+    L2t = np.sqrt((x[idx['x2t']] - x[idx['x02t']])**2 + (x[idx['z2t']] - x[idx['z02t']])**2 + epsilon)
+    L3t = np.sqrt((x[idx['x01t']] - x[idx['x02t']])**2 + (x[idx['z01t']] - x[idx['z02t']])**2 + epsilon)
+    L1t = np.sqrt((x[idx['x1t']] - x[idx['x01t']])**2 + (x[idx['z1t']] - x[idx['z01t']])**2 + epsilon)
+    L4t = np.sqrt((x[idx['x1t']] - x[idx['x2t']])**2 + (x[idx['z1t']] - x[idx['z2t']])**2 + epsilon)
+    D = (L2t * np.cos(A2xt) - L4t * np.sin(np.deg2rad((A4zt)))- L1t * np.cos(A1xt) - L3t * np.sin(A3zt))
+    #print(f"D: {D}")
+    return [D - 40, 60 - D]
+
+def restricao_distancia_cg(x):
+    # Extrai as variáveis dianteiras
+    x01d, z01d = x[idx['x01d']], x[idx['z01d']]
+    x1d, z1d = x[idx['x1d']], x[idx['z1d']]
+    x02d, z02d = x[idx['x02d']], x[idx['z02d']]
+    x2d, z2d = x[idx['x2d']], x[idx['z2d']]
+    
+    # Extrai as variáveis traseiras
+    x01t, z01t = x[idx['x01t']], x[idx['z01t']]
+    x1t, z1t = x[idx['x1t']], x[idx['z1t']]
+    x02t, z02t = x[idx['x02t']], x[idx['z02t']]
+    x2t, z2t = x[idx['x2t']], x[idx['z2t']]
+    xpd, ypd, zpd = 640, 946.98, 0
+    xpt, ypt, zpt = 564, -583, 0
+    zcg, ycg = 334.6, 179.3
+    
+    a1d = ((z1d - z01d) / (x1d - x01d))
+    b1d = z1d - a1d * x1d
+    a2d = ((z2d - z02d) / (x2d - x02d))
+    b2d = z2d - a2d * x2d
+   
+    xid = (b1d - b2d) / (a1d - a2d)
+    zid = a1d * xid + b1d
+   
+    xid = (b1d - b2d)/(a1d - a2d)
+    zid = a1d*(xid) + b1d
+    
+    a1t = ((z1t - z01t) / (x1t - x01t))
+    b1t = z1t - a1t * x1t
+    a2t = ((z2t - z02t) / (x2t - x02t))
+    b2t = z2t - a2t * x2t
+    xit = (b1t - b2t) / (a1t - a2t)
+    zit = a1t * xit + b1t
+    
+    ad = (-zid/(xpd - xid))
+    bd = -ad*xpd
+    zd = bd
+    yd = 955
+    
+    y1t = -583
+    y01t = -440
+    at = (-zit/(xpt - xit))
+    bt = -at*xpt
+    zt = bt
+    yt = -x1t*(y1t - y01t)/(x1t - x01t) + y1t
+    a = ((zd - zt)/(yd - yt))
+    b = zd - a*yd
+    
+    return [distancia_cg - 70]
+
+def restricao_diferenca_altura(x):
+    x01d, z01d = x[idx['x01d']], x[idx['z01d']]
+    x1d, z1d = x[idx['x1d']], x[idx['z1d']]
+    x02d, z02d = x[idx['x02d']], x[idx['z02d']]
+    x2d, z2d = x[idx['x2d']], x[idx['z2d']]
+    
+    # Extrai as variáveis traseiras
+    x01t, z01t = x[idx['x01t']], x[idx['z01t']]
+    x1t, z1t = x[idx['x1t']], x[idx['z1t']]
+    x02t, z02t = x[idx['x02t']], x[idx['z02t']]
+    x2t, z2t = x[idx['x2t']], x[idx['z2t']]
+    xpd, ypd, zpd = 640, 946.98, 0
+    xpt, ypt, zpt = 564, -583, 0
+    zcg, ycg = 334.6, 179.3
+    
+    a1d = ((z1d - z01d) / (x1d - x01d))
+    b1d = z1d - a1d * x1d
+    a2d = ((z2d - z02d) / (x2d - x02d))
+    b2d = z2d - a2d * x2d
+   
+    xid = (b1d - b2d) / (a2d - a1d)
+    zid = a1d * xid + b1d
+  
+    
+    a1t = ((z1t - z01t) / (x1t - x01t))
+    b1t = z1t - a1t * x1t
+    a2t = ((z2t - z02t) / (x2t - x02t))
+    b2t = z2t - a2t * x2t
+    xit = (b1t - b2t) / (a2t - a1t)
+    zit = a1t * xit + b1t
+    
+    ad = (-zid/(xpd - xid))
+    bd = -ad*xpd
+    zd = bd
+    yd = 949
+    
+    y1t = -583
+    y01t = -420
+    at = (-zit/(xpt - xit))
+    bt = -at*xpt
+    zt = bt
+    return [15 - (zt - zd), (zt - zd) - 15 ]  # Deve ser >= 0 para satisfazer a restrição
+def restricao_KPD(x):
+    x1d, z1d = x[idx['x1d']], x[idx['z1d']]
+    x2d, z2d = x[idx['x2d']], x[idx['z2d']]
+    KPD = (x1d - x2d)/(z2d - z1d)
+    KPD = np.arctan((KPD))
+    return [5 - KPD, KPD - 12 ] 
+bounds =[
+    (317, 350),   # Variável 0 - Limite para x01d
+    (275, 276),   # Variável 1 - Limite para z01d
+    (474, 475),   # Variável 2 - Limite para x1d
+    (372, 378),   # Variável 3 - Limite para z1d
+    (180, 270),   # Variável 4 - Limite para x02d
+    (126, 127),   # Variável 5 - Limite para z02d
+    (525, 526),   # Variável 6 - Limite para x2d 
+    (159, 160),   # Variável 7 - Limite para z2d
+    (343, 370),   # Variável 8 - Limite para x01t
+    (340, 370),   # Variável 9 - Limite para z01t
+    (460, 495),   # Variável 10 - Limite para x1t
+    (370, 378),   # Variável 11 - Limite para z1t
+    (210, 295),   # Variável 12 - Limite para x02t
+    (150, 183),   # Variável 13 - Limite para z02t
+    (510, 580),   # Variável 14 - Limite para x2t
+    (158, 164),]  #Variável 15
+
+initial_guess = [(bound[0] + bound[1]) / 2 if bound[0] is not None and bound[1] is not None else 0 for bound in bounds]
+
+constraints = [
+     #{'type': 'ineq', 'fun': restrição_1},
+    # {'type': 'ineq', 'fun': restrição_2},
+    #{'type': 'ineq', 'fun': restrição_1d},
+    # {'type': 'ineq', 'fun': restrição_1t},
+    {'type': 'ineq', 'fun': restrição_2d},
+    {'type': 'ineq', 'fun': restrição_2t},
+    {'type': 'ineq', 'fun': restrição_3d},
+    {'type': 'ineq', 'fun': restrição_3t},
+    
+    {'type': 'ineq', 'fun': restricao_diferenca_altura},
+    #{'type': 'ineq', 'fun': restricao_KPD},
+     #{'type': 'ineq', 'fun': restriçãoKPID},
+   
+    #{'type': 'ineq', 'fun': restricao_distancia_cg}
+     
+]
+#definir SD pelos bounds mesmo
+
+result = minimize(
+    objective_function,
+    initial_guess,
+    method='SlSQP', 
+    bounds = bounds,
+    constraints=constraints, 
+    options={'maxiter': 1000000,'ftol': 1.5, 'disp': True}  # Configurações adicionais
+)
+Lista = []
+if result.success:
+    print("Solução Ótima Encontrada:")
+    for i, var in enumerate(result.x):
+        print(f"x[{i}] = {var}")
+    for i, var in enumerate(result.x):
+        Lista.append(result.x[i])
+       # print(Lista)
+    # Calcular e imprimir a distância final
+    distancia_final = objective_function(result.x)
+    print(f"Distância calculada: {distancia_final}")
+else:
+    print("Solução não encontrada:", result.message)
+i = 1
+while i < 11:
+        Lista.insert(i, 955)
+        i = i + 3
+print(Lista)
+def roll_center(x):
+  x01d, z01d = x[idx['x01d']], x[idx['z01d']]
+  x1d, z1d = x[idx['x1d']], x[idx['z1d']]
+  x02d, z02d = x[idx['x02d']], x[idx['z02d']]
+  x2d, z2d = x[idx['x2d']], x[idx['z2d']]
+  
+  # Extrai as variáveis traseiras
+  x01t, z01t = x[idx['x01t']], x[idx['z01t']]
+  x1t, z1t = x[idx['x1t']], x[idx['z1t']]
+  x02t, z02t = x[idx['x02t']], x[idx['z02t']]
+  x2t, z2t = x[idx['x2t']], x[idx['z2t']]
+  xpd, ypd, zpd = 640, 946.98, 0
+  xpt, ypt, zpt = 564, -583, 0
+  zcg, ycg = 334.6, 179.3
+  
+  a1d = ((z1d - z01d) / (x1d - x01d))
+  b1d = z1d - a1d * x1d
+  a2d = ((z2d - z02d) / (x2d - x02d))
+  b2d = z2d - a2d * x2d
+ 
+  xid = (b1d - b2d) / (a2d - a1d)
+  zid = a1d * xid + b1d
+
+  
+  a1t = ((z1t - z01t) / (x1t - x01t))
+  b1t = z1t - a1t * x1t
+  a2t = ((z2t - z02t) / (x2t - x02t))
+  b2t = z2t - a2t * x2t
+  xit = (b1t - b2t) / (a2t - a1t)
+  zit = a1t * xit + b1t
+  
+  ad = (-zid/(xpd - xid))
+  bd = -ad*xpd
+  zd = bd
+  yd = 955
+  
+  y1t = -583
+  y01t = -440
+  at = (-zit/(xpt - xit))
+  bt = -at*xpt
+  zt = bt
+  return zd, zt, zid, xid
+
+print(roll_center(result.x))
