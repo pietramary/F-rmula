@@ -1,0 +1,15 @@
+#Roll Stiffness
+#Roll Stiffness
+ms = 246.7
+g = 9.81
+CG = 340
+RC= 107.6
+RG_Esp = 0.8
+R_S =ms*g*(0.34 - 0.109)/RG_Esp
+Roll_S_F = R_S*57/100
+WR = 17.87
+WR = WR*1000
+F_R_Spring = ((1.19*WR)**2/(2*WR))*(3.14/180)
+R_ARB = Roll_S_F - F_R_Spring
+FARBS = (R_ARB*0.34**2)
+print(R_S, Roll_S_F, F_R_Spring, R_ARB, FARBS)
